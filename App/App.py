@@ -24,6 +24,16 @@ from Courses import ds_course, web_course, android_course, ios_course, uiux_cour
 import nltk
 nltk.download('stopwords')
 
+import spacy
+from spacy.cli import download
+
+# Try loading en_core_web_sm and download if missing
+try:
+    nlp = spacy.load("en_core_web_sm")
+except OSError:
+    download("en_core_web_sm")
+    nlp = spacy.load("en_core_web_sm")
+
 # Connect to SQLite database
 connection = sqlite3.connect('resume_analyzer.db')
 cursor = connection.cursor()
