@@ -39,6 +39,7 @@
 
 ## About the Project 🥱
 <div align="center">
+    <br/><img src="https://raw.githubusercontent.com/Projects-in-python/AI-Resume-Analyzer/blob/main/screenshots/Resume-Analyzer.png" alt="screenshot" /><br/><br/>
     <br/><img src=" https://github.com/Projects-in-python/AI-Resume-Analyzer/blob/main/screenshots/Resume-Analyzer.png" alt="screenshot" /><br/><br/>
     <p align="justify"> 
       A tool which parses information from a resume using natural language processing and finds the keywords, cluster them onto sectors based on their keywords. 
