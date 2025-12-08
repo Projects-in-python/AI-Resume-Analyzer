@@ -12,7 +12,7 @@ import io
 import plotly.express as px
 import plotly.graph_objects as go
 from geopy.geocoders import Nominatim
-from pyresparser import ResumeParser
+from resume_parser import ResumeParser
 from pdfminer3.layout import LAParams, LTTextBox
 from pdfminer3.pdfpage import PDFPage
 from pdfminer3.pdfinterp import PDFResourceManager
@@ -20,6 +20,8 @@ from pdfminer3.pdfinterp import PDFPageInterpreter
 from pdfminer3.converter import TextConverter
 from streamlit_tags import st_tags
 from PIL import Image
+from geopy.geocoders import Nominatim
+from geopy.exc import GeocoderTimedOut, GeocoderUnavailable
 from Courses import ds_course, web_course, android_course, ios_course, uiux_course, resume_videos, interview_videos
 import nltk
 nltk.download('stopwords')
@@ -112,13 +114,30 @@ st.set_page_config(
 
 ###### Main function run() ######
 
+geolocator = Nominatim(
+    user_agent="resume-analyzer-app",
+    timeout=10
+)
+
+def safe_reverse_geocode(latlong):
+    try:
+        location = geolocator.reverse(latlong, language="en")
+        return location   # ✅ return full object
+    except (GeocoderTimedOut, GeocoderUnavailable):
+        return None
+
+
 def run():
+    
     img = Image.open('./Logo/Resume-Analyzer.png')
+    # video = st.video('./Logo/Resume-Analyzer.mp4')
+
+    # st.image(video)
     st.image(img)
     st.sidebar.markdown("# Choose Something...")
     activities = ["User", "Feedback", "About", "Admin"]
     choice = st.sidebar.selectbox("Choose among the given options:", activities)
-    link = '<b>Built with 🤍 by <a href="https://dnoobnerd.netlify.app/" style="text-decoration: none; color: #021659;">Uttam Singh</a></b>' 
+    link = '<b>Built with 🤍 by <a href="https://dnoobnerd.netlify.app/" style="text-decoration: none; color: #4587f7;">Utsav Singh</a></b>' 
     st.sidebar.markdown(link, unsafe_allow_html=True)
     st.sidebar.markdown('''
         <div id="sfct2xghr8ak6lfqt3kgru233378jya38dy" hidden></div>
@@ -131,32 +150,37 @@ def run():
     ''', unsafe_allow_html=True)
 
     # Create tables
-    cursor.execute("""CREATE TABLE IF NOT EXISTS user_data (
-                ID INTEGER PRIMARY KEY AUTOINCREMENT,
-                sec_token TEXT NOT NULL,
-                ip_add TEXT,
-                host_name TEXT,
-                dev_user TEXT,
-                os_name_ver TEXT,
-                latlong TEXT,
-                city TEXT,
-                state TEXT,
-                country TEXT,
-                act_name TEXT NOT NULL,
-                act_mail TEXT NOT NULL,
-                act_mob TEXT NOT NULL,
-                Name TEXT NOT NULL,
-                Email_ID TEXT NOT NULL,
-                resume_score TEXT NOT NULL,
-                Timestamp TEXT NOT NULL,
-                Page_no TEXT NOT NULL,
-                Predicted_Field TEXT NOT NULL,
-                User_level TEXT NOT NULL,
-                Actual_skills TEXT NOT NULL,
-                Recommended_skills TEXT NOT NULL,
-                Recommended_courses TEXT NOT NULL,
-                pdf_name TEXT NOT NULL
-            )""")
+    cursor.execute("""
+    SELECT
+        ID,
+        sec_token,
+        ip_add,
+        act_name,
+        act_mail,
+        act_mob,
+        Predicted_Field,
+        Timestamp,
+        Name,
+        Email_ID,
+        resume_score,
+        Page_no,
+        pdf_name,
+        User_level,
+        Actual_skills,
+        Recommended_skills,
+        Recommended_courses,
+        city,
+        state,
+        country,
+        latlong,
+        os_name_ver,
+        host_name,
+        dev_user
+    FROM user_data
+    """)
+
+    data = cursor.fetchall()
+
     cursor.execute("""CREATE TABLE IF NOT EXISTS user_feedback (
                 ID INTEGER PRIMARY KEY AUTOINCREMENT,
                 feed_name TEXT NOT NULL,
@@ -180,13 +204,22 @@ def run():
         g = geocoder.ip('me')
         latlong = g.latlng
         geolocator = Nominatim(user_agent="http")
-        location = geolocator.reverse(latlong, language='en')
+        # location = geolocator.reverse(latlong, language='en')
+        location = safe_reverse_geocode(latlong)
+
+        if location and hasattr(location, "raw"):
+            address = location.raw.get("address", {})
+            city = address.get("city", address.get("town", address.get("village", "")))
+            state = address.get("state", "")
+            country = address.get("country", "")
+        else:
+            city = state = country = "Unknown"
         address = location.raw['address']
         city = address.get('city', '')
         state = address.get('state', '')
         country = address.get('country', '')
 
-        st.markdown('''<h5 style='text-align: left; color: #021659;'> Upload Your Resume, And Get Smart Recommendations</h5>''', unsafe_allow_html=True)
+        st.markdown('''<h5 style='text-align: left; color: #4587f7;'> Upload Your Resume, And Get Smart Recommendations</h5>''', unsafe_allow_html=True)
         pdf_file = st.file_uploader("Choose your Resume", type=["pdf"])
         if pdf_file is not None:
             with st.spinner('Hang On While We Cook Magic For You...'):
@@ -299,7 +332,7 @@ def run():
                     resume_score += 16
                     st.markdown('''<h5 style='text-align: left; color: #1ed760;'>[+] Awesome! You have added Experience</h5>''', unsafe_allow_html=True)
                 else:
-                    st.markdown('''<h5 style='text-align: left; color: #000000;'>[-] Please add Experience. It will help you to stand out from crowd</h5>''', unsafe_allow_html=True)
+                    st.markdown('''<h5 style='text-align: left; color: #ffffff;'>[-] Please add Experience. It will help you to stand out from crowd</h5>''', unsafe_allow_html=True)
                 if 'INTERNSHIPS' in resume_text or 'INTERNSHIP' in resume_text or 'Internships' in resume_text or 'Internship' in resume_text:
                     resume_score += 6
                     st.markdown('''<h5 style='text-align: left; color: #1ed760;'>[+] Awesome! You have added Internships</h5>''', unsafe_allow_html=True)
@@ -466,20 +499,63 @@ def run():
         if st.button('Login'):
             
             ## Credentials 
-            if ad_user == 'admin' and ad_password == 'admin@resume-analyzer':
+            if ad_user == 'admin' and ad_password == 'admin':
                 
                 ### Fetch miscellaneous data from user_data(table) and convert it into dataframe
-                cursor.execute('''SELECT ID, ip_add, resume_score, convert(Predicted_Field using utf8), convert(User_level using utf8), city, state, country from user_data''')
+                # cursor.execute('''SELECT ID, ip_add, resume_score, convert(Predicted_Field using utf8), convert(User_level using utf8), city, state, country from user_data''')
+                cursor.execute("""
+                SELECT
+                    ID,
+                    sec_token,
+                    ip_add,
+                    act_name,
+                    act_mail,
+                    act_mob,
+                    Predicted_Field,
+                    Timestamp,
+                    Name,
+                    Email_ID,
+                    resume_score,
+                    Page_no,
+                    pdf_name,
+                    User_level,
+                    Actual_skills,
+                    Recommended_skills,
+                    Recommended_courses,
+                    city,
+                    state,
+                    country,
+                    latlong,
+                    os_name_ver,
+                    host_name,
+                    dev_user
+                FROM user_data
+                """)
+
+                # data = cursor.fetchall()
+
                 datanalys = cursor.fetchall()
-                plot_data = pd.DataFrame(datanalys, columns=['Idt', 'IP_add', 'resume_score', 'Predicted_Field', 'User_Level', 'City', 'State', 'Country'])
-                
-                ### Total Users Count with a Welcome Message
-                values = plot_data.Idt.count()
-                st.success("Welcome Deepak ! Total %d " % values + " User's Have Used Our Tool : )")                
+                plot_data = pd.DataFrame(datanalys, columns=[
+                    'ID', 'Token', 'IP_add', 'Act Name', 'Act Mail', 'Act Mob', 'Predicted_Field', 'Timestamp',
+                    'Name', 'Email_ID', 'resume_score', 'Page_no', 'pdf_name', 'User_Level', 'Actual_Skills',
+                    'Recommended_Skills', 'Recommended_Courses', 'City', 'State', 'Country', 'LatLong',
+                    'OS_Name', 'Host_Name', 'Dev_User'
+                ])
+
+                values = plot_data.ID.count()
+
+                # values = plot_data['ID'].count()
+                st.success("Welcome to CodeMaking Thanks to see this AI ! Total %d " % values + " User's Have Used Our Tool : )")                
                 
                 ### Fetch user data from user_data(table) and convert it into dataframe
-                cursor.execute('''SELECT ID, sec_token, ip_add, act_name, act_mail, act_mob, convert(Predicted_Field using utf8), Timestamp, Name, Email_ID, resume_score, Page_no, pdf_name, convert(User_level using utf8), convert(Actual_skills using utf8), convert(Recommended_skills using utf8), convert(Recommended_courses using utf8), city, state, country, latlong, os_name_ver, host_name, dev_user from user_data''')
-                data = cursor.fetchall()                
+                cursor.execute('''
+                SELECT ID, sec_token, ip_add, act_name, act_mail, act_mob,
+                    Predicted_Field, Timestamp, Name, Email_ID, resume_score, Page_no, pdf_name,
+                    User_level, Actual_skills, Recommended_skills, Recommended_courses,
+                    city, state, country, latlong, os_name_ver, host_name, dev_user
+                FROM user_data
+                ''')
+                data = cursor.fetchall()
 
                 st.header("**User's Data**")
                 df = pd.DataFrame(data, columns=['ID', 'Token', 'IP Address', 'Name', 'Mail', 'Mobile Number', 'Predicted Field', 'Timestamp',
